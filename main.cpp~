@@ -6,19 +6,29 @@
 #include <pcl/search/kdtree.h>
 #include <pcl/point_types_conversion.h>
 
+#include <pcl/segmentation/region_growing_rgb.h>
+#include <pcl/features/moment_of_inertia_estimation.h>
+
 //#include <pcl/filters/passthrough.h>
 
 using namespace std;
 
-int main()
+int main(int argc, char* argv[])
 {
   cout << "Welcome to the parking project" << endl;
-
+  
+  if (argc !=2 )
+  {
+		cerr << "Incorrect number of arguments" << endl;
+    cerr << "Usage: " << argv[0] << "<fileName.ply>" << endl;
+    return -1;
+  }
+  
 	// Load PLY file
-//	string fName = "../../PointCloud_Inglostadt_Theater2_10mm/pointcloud.ply";
+  string fName = argv[1];
 
 //	string fName = "/media/fabio/Sandeep_2TB/Parkopedia-Exercise/PointCloud_Inglostadt_Theater_10mm/pointcloud.ply"; //1.4GB
-	string fName = "/media/fabio/Sandeep_2TB/Parkopedia-Exercise/PointCloud_Inglostadt_Theater2_10mm/pointcloud.ply"; //1.3GB
+//	string fName = "/media/fabio/Sandeep_2TB/Parkopedia-Exercise/PointCloud_Inglostadt_Theater2_10mm/pointcloud.ply"; //1.3GB
 //	string fName = "/media/fabio/Sandeep_2TB/Parkopedia-Exercise/PointCloud_5mm__wolfsburg_galerie_1b_01/pointcloud.ply"; //4GB
 //	string fName = "/media/fabio/Sandeep_2TB/Parkopedia-Exercise/PointCloud_5mm__wolfsburg_galerie_1b_02/pointcloud.ply"; //3GB
 
@@ -85,17 +95,17 @@ int main()
 		floor_bw->push_back(pt);
 	}
 */
-	
+
+/*	
 	//convert RGB to HSV
 	pcl::PointCloud<pcl::PointXYZHSV>::Ptr floor_hsv(new pcl::PointCloud<pcl::PointXYZHSV>());;
 	pcl::PointCloudXYZRGBtoXYZHSV(*floor_rgb,*floor_hsv);
-	for (unsigned int i = 0; i<floor_hsv->points.size(); ++i)
+	for (uint32_t i = 0; i<floor_hsv->points.size(); ++i)
 	{
 	  pcl::PointXYZRGB pt;
 		pt.x = floor_rgb->points[i].x;
 		pt.y = floor_rgb->points[i].y;
 		pt.z = floor_rgb->points[i].z;
-		//cout << floor_hsv->points[i].h << "," << floor_hsv->points[i].s << "," << floor_hsv->points[i].v << endl;
 		if ((floor_hsv->points[i].s<0.4)&&(floor_hsv->points[i].v>0.6))
 		{
 			pt.r = 255;
@@ -111,53 +121,72 @@ int main()
 		floor_bw->push_back(pt);
 	}
 	cout << "Applying a color threshold (manually)... Done" << endl;
+*/
 
+
+
+	// color-based segmentation
+	cout << "Color-based segmentation ... " << endl;
+	vector<pcl::PointIndices> clusters;
+	pcl::search::Search<pcl::PointXYZRGB>::Ptr tree;// = boost::shared_ptr<pcl::search::Search<pcl::PointXYZRGB>> (new pcl::search::kdTree<pcl::PointXYZRGB>);
+	pcl::RegionGrowingRGB<pcl::PointXYZRGB> reg;
+	reg.setInputCloud(floor_cloud);
+	reg.setSearchMethod(tree);
+	reg.setDistanceThreshold(10);
+	reg.setPointColorThreshold(3);
+	reg.setRegionColorThreshold(2);
+	reg.setMinClusterSize(5000);
+//	reg.setMaxClusterSize(120000);
+	reg.extract(clusters);
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr clusters_cloud = reg.getColoredCloud();
+	cout << "Color-based segmentation ... Done" << endl;
 
 	// Visualization
 	cout << "Visualizing ... " << endl;
-	pcl::visualization::PCLVisualizer viewer(" PCL Visualizer");
+	pcl::visualization::PCLVisualizer viewer("Parking floor");
 	int v1(0);
 	viewer.createViewPort(0.0,0.0,0.5,1.0,v1);
-	viewer.setBackgroundColor(0.5,0.5,0.5,v1);
-	//pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> i_rgb(input_cloud);
-	//viewer.addPointCloud(input_cloud,i_rgb,"input",v1);
-  pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> f_rgb(floor_rgb);
-	viewer.addPointCloud(floor_rgb,f_rgb,"floor-rgb",v1);
+	viewer.setBackgroundColor(0.5,0.5,0.5,v1); // Set background to a dark grey
+	pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> f_rgb(floor_cloud); // Define R,G,B colors for the point cloud
+	viewer.addPointCloud(floor_cloud,f_rgb,"floor",v1);
+
+  // convert from XYZRGB to XYZ
+	pcl::PointCloud<pcl::PointXYZ>::Ptr tmp_cloud(new pcl::PointCloud<pcl::PointXYZ>());
+	pcl::copyPointCloud(*floor_cloud,*tmp_cloud);
+
+	// compute and draw bounding boxes of the cluster clouds
+	for (uint32_t i = 0; i < clusters.size(); ++i)
+	{
+		pcl::PointXYZ min;
+		pcl::PointXYZ max;
+		pcl::PointXYZ pos;
+		Eigen::Matrix3f rot_mat;
+	
+		pcl::MomentOfInertiaEstimation<pcl::PointXYZ> feature_extractor;
+		pcl::PointIndices::Ptr cl_ptr = boost::shared_ptr<pcl::PointIndices>(new pcl::PointIndices(clusters[i]));
+		feature_extractor.setInputCloud(tmp_cloud);
+		feature_extractor.setIndices(cl_ptr);
+		feature_extractor.compute();
+		bool flag = feature_extractor.getOBB(min,max,pos,rot_mat);
+		if (flag)
+		{
+		  //compute box
+			double width = max.x-min.x;
+			double height = max.y-min.y;
+			double depth = max.z-min.z;
+			Eigen::Vector3f trans(pos.x,pos.y,pos.z);
+			Eigen::Quaternionf quat(rot_mat);
+			// draw box
+			viewer.addCube(trans,quat,width,height,depth,"Box "+std::to_string(i));
+		}
+	}
+
 
 	int v2(0);
 	viewer.createViewPort(0.5,0.0,1.0,1.0,v2);
-	viewer.setBackgroundColor(0.7,0.7,0.7,v2);
-	pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> f_bw(floor_bw);
-	viewer.addPointCloud(floor_bw,f_bw,"floor-bw",v2);
-
-	//add coordinate system
-//	viewer.addCoordinateSystem(1.0);
-
-	//add a sphere at origin
-	pcl::PointXYZ op; //origin
-	op.x = 0;
-	op.y = 0;
-	op.z = 0;
-	viewer.addSphere(op,1,0.5,0.5,0.0,"origin");
-
-	//add axes
-	pcl::PointXYZ xp;
-	xp.x = 20;
-	xp.y = 0;
-	xp.z = 0;
-	viewer.addLine<pcl::PointXYZ> (op, xp, 1.0, 0.0, 0.0, "x-axis");
-
-	pcl::PointXYZ yp;
-	yp.x = 0;
-	yp.y = 20;
-	yp.z = 0;
-	viewer.addLine<pcl::PointXYZ> (op, yp, 0.0, 1.0, 0.0, "y-axis");
-
-	pcl::PointXYZ zp;
-	zp.x = 0;
-	zp.y = 0;
-	zp.z = 20;
-	viewer.addLine<pcl::PointXYZ> (op, zp, 0.0, 0.0, 1.0, "z-axis");
+	viewer.setBackgroundColor(0.7,0.7,0.7,v2); // Set background to a dark grey
+	pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> c_rgb(clusters_cloud); // Define R,G,B colors for the point cloud
+	viewer.addPointCloud(clusters_cloud,c_rgb,"clusters",v2);
 
 	while(!viewer.wasStopped())
 	{
