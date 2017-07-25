@@ -10,13 +10,6 @@ include_directories(${PCL_INCLUDE_DIRS})
 link_directories(${PCL_LIBRARY_DIRS})
 add_definitions(${PCL_DEFINITIONS})
 
-file(GLOB parking_SRC
-    "*.h"
-    "*.cpp"
-)
-
-#add_executable(park main.cpp)
-add_executable(park ${parking_SRC})
-
+add_executable(park main.cpp)
 
 target_link_libraries(park ${PCL_LIBRARIES} ${VTK_LIBRARIES})

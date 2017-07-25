@@ -1,0 +1,34 @@
+#ifndef SEGMENTATION_H_
+#define SEGMENTATION_H_
+
+#include <iostream>
+#include <string>
+
+#include <pcl/io/ply_io.h>
+#include <pcl/common/centroid.h>
+#include <pcl/visualization/cloud_viewer.h>
+#include <pcl/search/kdtree.h>
+#include <pcl/point_types_conversion.h>
+
+#include <pcl/search/search.h>
+#include <pcl/segmentation/region_growing_rgb.h>
+#include <pcl/features/moment_of_inertia_estimation.h>
+
+class Segmentation
+{
+  pcl::PointCloud<pcl::PointXYZRGB> input_cloud;
+  std::vector<pcl::PointIndices> segments;
+  pcl::PointCloud<pcl::PointXYZRGB>::Ptr segment_cloud;
+  
+public:
+  Segmentation(pcl::PointCloud<pcl::PointXYZRGB> &cloud);
+  
+  void segment(double, double, double);
+  
+  void visualize();
+
+  ~Segmentation();
+  
+} Segmentation;
+
+#endif /* SEGMENTATION_H_ */
