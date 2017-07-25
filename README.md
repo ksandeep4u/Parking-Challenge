@@ -6,4 +6,4 @@
 * set working directory to "build" using *cd Parking-Challenge/build*
 * run *cmake ..*
 * run *make*
-* run *./park*
+* run *./park "<fileName.ply>"*
