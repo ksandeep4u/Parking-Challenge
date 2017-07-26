@@ -4,7 +4,7 @@
 #include <iostream>
 #include <string>
 
-#include <pcl/io/ply_io.h>
+//#include <pcl/io/ply_io.h>
 #include <pcl/common/centroid.h>
 #include <pcl/visualization/cloud_viewer.h>
 #include <pcl/search/kdtree.h>

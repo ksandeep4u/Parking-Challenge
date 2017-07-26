@@ -1,7 +1,7 @@
 # Report: Parking-Challenge
 # Author: Sandeep Katragadda
 
-This report presents my approach to find the parking bays in the given point clouds. The clouds are given in .PLY format. Each point in the clouds has three dimensions X, Y and Z, and a color represented by R, G and B values.
+This report presents my approaches to find the parking bays in the given point clouds. The clouds are given in .PLY format. Each point in the clouds has three dimensions X, Y and Z, and a color represented by R, G and B values.
 
 ## Pre-requisites
 C++11 is the programming language used to achieve the goal. The libraries used are the open source Point Cloud Library (PCL 1.7), Visualization Toolkit (VTK) and Eigen. CMake 3.9.0 is used to compile the code.
@@ -31,6 +31,12 @@ for(uint32_t i = 0; i<input_cloud->points.size(); ++i)
 
 To reduce the processing time, the rest of the processing is done only on the floor.
 
+
+The idea is to collect different features of the floor and fuse them at the end. Two features tried are white regions (parking line color) and similar colored segments. White regions are identified using a color threshold and the segments are obtained using color-based segmentation. Each of them are developed in a separate class. They are *Color_Threshold* and *Segmentation*. The project can be expanded by adding classes to compute more features.
+
+3D edge detection is another possible approach to find the parking lines. It is provided by *pcl/features/organized_edge_detection* (supported by PCL 1.8). Other alternatives are *pcl::OrganizedEdgeBase* and *pcl::LineRGBD*. As all parking bays have similar features (shape), template matching can also be used.
+
+This report presents the initial results of color thresholding and color-based segmentation.
 
 ## Approach 1: Parking line identification via color thresholding
 In the first approach, a threshold on the color is used to identify the white parking lines of the floor. This is done in the HSV color space so the *floor_cloud* which is in the RGB color space is converted to HSV color space as:
@@ -187,9 +193,6 @@ viewer.addCube(trans_vec,quat,width,height,depth,"box "+std::to_string(i),v1);
 ```
 
 ## Additional comments
-
-- 3D edge detection is another possible approach to find the parking lines. It is provided by *pcl/features/organized_edge_detection* (supported by PCL 1.8). Other alternatives are *pcl::OrganizedEdgeBase* and *pcl::LineRGBD*. As all parking bays have similar features (shape), template matching can also be used.
-
 
 - Due to the large amount of data to be processed, high-performance processors such as GPUs are required to implement and test the PCL algorithms.
 

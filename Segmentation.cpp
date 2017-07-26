@@ -24,6 +24,8 @@ void Segmentation::segment(double dist_th, double color_th1, double color_th2)
 
 void Segmentation::computeBBoxes(double area_upper, double area_lower)
 {
+  boundingBoxes.clear();
+  
   // convert from XYZRGB to XYZ
 	pcl::PointCloud<pcl::PointXYZ>::Ptr tmp_ptr(new pcl::PointCloud<pcl::PointXYZ>());
 	pcl::copyPointCloud(*input_ptr,*tmp_ptr);
@@ -69,34 +71,34 @@ std::vector<bbox>& Segmentation::getBBoxes()
 void Segmentation::visualize()
 {
   //cluster cloud
-  pcl::visualization::PCLVisualizer viewer0("Parking clusters");
+  pcl::visualization::PCLVisualizer viewer2("Segments");
 	int v0(0);
-	viewer0.setBackgroundColor(0.7,0.7,0.7,v0); // Set background to a dark grey
+	viewer2.setBackgroundColor(0.7,0.7,0.7,v0); // Set background to a dark grey
 	pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> c_rgb(clusters_ptr); // Define R,G,B colors for the point cloud
-	viewer0.addPointCloud(clusters_ptr,c_rgb,"clusters",v0);
+	viewer2.addPointCloud(clusters_ptr,c_rgb,"clusters",v0);
 
-	while(!viewer0.wasStopped())
+	while(!viewer2.wasStopped())
 	{
-		viewer0.spinOnce(100);
+		viewer2.spinOnce(100);
 		boost::this_thread::sleep(boost::posix_time::microseconds(100000));
 	}
 	
 	//result with boxes
-	pcl::visualization::PCLVisualizer viewer1("Parking result");
+	pcl::visualization::PCLVisualizer viewer3("Segmentation result");
 	int v1(0);
-	viewer1.setBackgroundColor(0.5,0.5,0.5,v1); // Set background to a dark grey
+	viewer3.setBackgroundColor(0.5,0.5,0.5,v1); // Set background to a dark grey
 	pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> i_rgb(input_ptr); // Define R,G,B colors for the point cloud
-	viewer1.addPointCloud(input_ptr,i_rgb,"input",v1);
+	viewer3.addPointCloud(input_ptr,i_rgb,"input",v1);
 	
 	// draw bounding boxes of the clusters on the floor
 	for (uint32_t i = 0; i < boundingBoxes.size(); ++i)
 	{
-	  viewer1.addCube(boundingBoxes[i].trans,boundingBoxes[i].quat,boundingBoxes[i].width,boundingBoxes[i].height,boundingBoxes[i].depth,"Box "+std::to_string(i));
+	  viewer3.addCube(boundingBoxes[i].trans,boundingBoxes[i].quat,boundingBoxes[i].width,boundingBoxes[i].height,boundingBoxes[i].depth,"Box "+std::to_string(i));
 	}
 	
-	while(!viewer1.wasStopped())
+	while(!viewer3.wasStopped())
 	{
-		viewer1.spinOnce(100);
+		viewer3.spinOnce(100);
 		boost::this_thread::sleep(boost::posix_time::microseconds(100000));
 	}
 
@@ -104,6 +106,7 @@ void Segmentation::visualize()
 
 Segmentation::~Segmentation()
 {
+  // free the memory allocated
 
 
 }

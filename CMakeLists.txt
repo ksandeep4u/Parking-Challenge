@@ -15,7 +15,6 @@ file(GLOB parking_SRC
     "*.cpp"
 )
 
-#add_executable(park main.cpp)
 add_executable(park ${parking_SRC})
 
 

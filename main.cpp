@@ -1,20 +1,26 @@
+/*
+  Author: Sandeep Katragadda
+  Email: s.katragadda@qmul.ac.uk
+*/
+
 #include <iostream>
 #include <string>
 
 #include <pcl/io/ply_io.h>
+/*
 #include <pcl/common/centroid.h>
 #include <pcl/visualization/cloud_viewer.h>
 #include <pcl/search/kdtree.h>
 #include <pcl/point_types_conversion.h>
-
 #include <pcl/search/search.h>
 #include <pcl/segmentation/region_growing_rgb.h>
 #include <pcl/features/moment_of_inertia_estimation.h>
+*/
 
 //#include <pcl/filters/passthrough.h>
 
-
 #include "Segmentation.h"
+#include "Color_Threshold.h"
 
 using namespace std;
 
@@ -51,7 +57,7 @@ int main(int argc, char* argv[])
 
 
   //-----------------------------------------------------------------------------
-	// find the floor
+	// Preprocessing: find the floor
   //-----------------------------------------------------------------------------
   
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr floor_cloud(new pcl::PointCloud<pcl::PointXYZRGB>());
@@ -80,36 +86,37 @@ int main(int argc, char* argv[])
 	cout << "Finding floor (Z = 0) ... Done" << endl;
 
 
-/*
   //-----------------------------------------------------------------------------
-	//apply a color threshold on floor to detect parking lines
+	// Feature 1: extract white parking lines by applying a color threshold
   //-----------------------------------------------------------------------------
-
-	pcl::PointCloud<pcl::PointXYZI>::Ptr floor_bw_cloud(new pcl::PointCloud<pcl::PointXYZI>());
 	cout << "Applying a color threshold ... " << endl;
-	//convert RGB to HSV
-	pcl::PointCloud<pcl::PointXYZHSV>::Ptr floor_hsv(new pcl::PointCloud<pcl::PointXYZHSV>());;
-	pcl::PointCloudXYZRGBtoXYZHSV(*floor_cloud,*floor_hsv);
+	Color_Threshold *ct = new Color_Threshold(floor_cloud);
 	double sat_th = 0.4; //threshold on saturation
 	double val_th = 0.6; //threshold on intensity value
-	for (uint32_t i = 0; i<floor_hsv->points.size(); ++i)
-	{
-	  pcl::PointXYZI pt;
-		pt.x = floor_hsv->points[i].x;
-		pt.y = floor_hsv->points[i].y;
-		pt.z = floor_hsv->points[i].z;
-		if ((floor_hsv->points[i].s < sat_th) && (floor_hsv->points[i].v > val_th))
-		{
-			pt.intensity = 255;
-		}
-		else
-		{
-			pt.intensity = 0;
-		}
-		floor_bw_cloud->push_back(pt);
-	}
+	ct->apply(sat_th,val_th);
 	cout << "Applying a color threshold ... Done" << endl;
-*/
+  
+	// Visualization
+	cout << "Visualizing white portions ... " << endl;
+	ct->visualize();
+	
+/*	
+  // Visualize from main()
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr result_ptr = ct->getOutput();
+	pcl::visualization::PCLVisualizer viewer2("Parking lines");
+	int v2(0);
+	viewer2.setBackgroundColor(0.5,0.5,0.5,v2); // Set background to a dark grey
+	pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> r_rgb(result_ptr); // Define R,G,B colors for the point cloud
+	viewer2.addPointCloud(result_ptr,r_rgb,"lines",v2);
+    	
+	while(!viewer2.wasStopped())
+	{
+		viewer2.spinOnce(100);
+		boost::this_thread::sleep(boost::posix_time::microseconds(100000));
+	}
+*/	
+	cout << "Visualizing white portions ... Done" << endl;
+
 
 
   //-----------------------------------------------------------------------------
@@ -121,7 +128,7 @@ int main(int argc, char* argv[])
 	pcl::PointXYZ cp;	//centroid
 	auto flag_centroid = pcl::computeCentroid(*floor_cloud,cp);
 	// select sub-cloud around origin using kdtree
-	cout << "Finding kNN ... " << endl;
+	cout << "Finding kNN (12m from floor centroid) ... " << endl;
 	pcl::KdTreeFLANN<pcl::PointXYZ> kdtree;
 	pcl::PointCloud<pcl::PointXYZ>::Ptr in_cloud(new pcl::PointCloud<pcl::PointXYZ>());
 	pcl::copyPointCloud(*floor_cloud,*in_cloud);
@@ -138,11 +145,11 @@ int main(int argc, char* argv[])
 		}
 	}
 //	cout << pointIdxRadiusSearch.size() << " points are selected for quick processing." << endl;
-	cout << "Finding kNN ... Done" << endl;
+	cout << "Finding kNN (12m from floor centroid) ... Done" << endl;
 
 
   //-----------------------------------------------------------------------------
-	// color-based segmentation of the sub-cloud
+	// Feature 2: color-based segmentation of the sub-cloud
   //-----------------------------------------------------------------------------
 	cout << "Color-based segmentation ... " << endl;
 	Segmentation *seg = new Segmentation(sub_cloud);
@@ -150,19 +157,37 @@ int main(int argc, char* argv[])
 	seg->computeBBoxes(3*6,2*2);
 	cout << "Color-based segmentation ... Done" << endl;
 	
-  //-----------------------------------------------------------------------------
 	// Visualization
-  //-----------------------------------------------------------------------------
-	cout << "Visualizing ... " << endl;
+	cout << "Visualizing segments ... " << endl;
 	seg->visualize();
 	std::vector<bbox>& output_boxes = seg->getBBoxes();
+	
+	// Print output 
 	for (uint32_t i = 0; i < output_boxes.size(); ++i)
 	{
-	  cout << i << "/" << output_boxes.size() << endl;
-//	  cout << output_boxes[i].trans << output_boxes[i].quat << output_boxes[i].width << output_boxes[i].height << output_boxes[i].depth << endl;
-	  cout << output_boxes[i].width << "," << output_boxes[i].height << "," << output_boxes[i].depth << endl;
+	  cout << "\n Box " << i << " of " << output_boxes.size() << endl;
+	  cout << "Trans: " << output_boxes[i].trans << endl;
+	  //cout << "Trans: " << output_boxes[i].trans[0] << "," << output_boxes[i].trans[1] << "," << output_boxes[i].trans[2] << endl;
+	  cout << "Quat: " << output_boxes[i].quat.w() << "; " << output_boxes[i].quat.vec() << endl;
+	  cout << "Dimensions: " << output_boxes[i].width << "," << output_boxes[i].height << "," << output_boxes[i].depth << endl;
 	}
-	cout << "Visualizing ... Done" << endl;
+	cout << "Visualizing segments ... Done" << endl;
+ 
+
+  //ToDo:
+  //-----------------------------------------------------------------------------
+	// Feature 3: extract other features of the sub-cloud (e.g. 3D edges, matched templates)
+  //-----------------------------------------------------------------------------
+ 
+
+
+
+  //ToDo:
+  //-----------------------------------------------------------------------------
+	// Feature fusion: exploit all the extracted features (white portions, color segments etc.) to find parking bays
+	//-----------------------------------------------------------------------------
+  
+  
   
   return 0;
 }
